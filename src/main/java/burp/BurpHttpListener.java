@@ -32,39 +32,44 @@ public class BurpHttpListener implements  IHttpListener, IProxyListener  {
         rawData = messageInfo.getRequest();//提前放好rawData
         IRequestInfo requestInfo = BurpExtender.callbacks.getHelpers().analyzeRequest(messageInfo);
         url = requestInfo.getUrl().toString();
-        String requestData = new String(rawData);
-        String body = requestData.substring( requestInfo.getBodyOffset());
-        //原始的body进行解密
-        body = BurpExtender.gui.findAndRun(url,body, ReqRep.REQUEST_RECEIVE);
-        //获取header部分
-        String header = requestData.substring(0,requestInfo.getBodyOffset());
-        messageInfo.setRequest((header+body).getBytes());
+        if(BurpExtender.gui.isMatch(url)){
+            String requestData = new String(rawData);
+            String body = requestData.substring( requestInfo.getBodyOffset());
+            //原始的body进行解密
+            body = BurpExtender.gui.findAndRun(url,body, ReqRep.REQUEST_RECEIVE);
+            //获取header部分
+            String header = requestData.substring(0,requestInfo.getBodyOffset());
+            messageInfo.setRequest((header+body).getBytes());
+        }
+
     }
     //requestOut阶段，即将发送request到服务端，读取明文的request，重新进行加密（包括签名、编码、更新时间戳等），使得服务端正常解析；
     private void requestOut(IHttpRequestResponse messageInfo,int toolFlag) {
         BurpExtender.stdout.println("requestOut：");
         IRequestInfo requestInfo = BurpExtender.callbacks.getHelpers().analyzeRequest(messageInfo);
         url = requestInfo.getUrl().toString();
-        rawData = messageInfo.getRequest();
-        String requestData = new String(rawData);
-        String body = requestData.substring( requestInfo.getBodyOffset());
-        //原始的body进行解密
-        String bodyt = BurpExtender.gui.findAndRun(url,body, ReqRep.REQUEST_SEND);
-        List<String> headerslist=requestInfo.getHeaders();
-        //repeater发送不会自动修改Content-Length长度。
-        String Length="";
-        for (int i=0;i< headerslist.size();i++){
-            if (headerslist.get(i).startsWith("Content-Length:")){
-                Length=headerslist.get(i);
+        if(BurpExtender.gui.isMatch(url)) {
+            rawData = messageInfo.getRequest();
+            String requestData = new String(rawData);
+            String body = requestData.substring(requestInfo.getBodyOffset());
+            //原始的body进行解密
+            String bodyt = BurpExtender.gui.findAndRun(url, body, ReqRep.REQUEST_SEND);
+            List<String> headerslist = requestInfo.getHeaders();
+            //repeater发送不会自动修改Content-Length长度。
+            String Length = "";
+            for (int i = 0; i < headerslist.size(); i++) {
+                if (headerslist.get(i).startsWith("Content-Length:")) {
+                    Length = headerslist.get(i);
+                }
             }
+            //获取header部分
+            String header = requestData.substring(0, requestInfo.getBodyOffset());
+            if (bodyt != body) {
+                header = header.replaceAll(Length, "Content-Length:" + String.valueOf(bodyt.length()));
+            }
+            BurpExtender.stdout.println("requestMaxBody：" + header + bodyt);
+            messageInfo.setRequest((header + bodyt).getBytes());
         }
-        //获取header部分
-        String header = requestData.substring(0,requestInfo.getBodyOffset());
-        if (bodyt!=body){
-            header=header.replaceAll(Length,"Content-Length:"+String.valueOf(bodyt.length()));
-        }
-        BurpExtender.stdout.println("requestMaxBody："+header+bodyt);
-        messageInfo.setRequest((header+bodyt).getBytes());
 
 
 
@@ -75,14 +80,16 @@ public class BurpHttpListener implements  IHttpListener, IProxyListener  {
         IResponseInfo responseInfo = BurpExtender.callbacks.getHelpers().analyzeResponse(rawData);
         IRequestInfo requestInfo = BurpExtender.callbacks.getHelpers().analyzeRequest(messageInfo);
         url=requestInfo.getUrl().toString();
-        String responseData = new String(rawData);
-        String body = responseData.substring( responseInfo.getBodyOffset());
-        BurpExtender.stdout.println("responsebody："+body);
-        //原始的body进行解密
-        body = BurpExtender.gui.findAndRun(url,body, ReqRep.RESPONSE_RECEIVE);
-        //获取header部分
-        String header = responseData.substring(0,responseInfo.getBodyOffset());
-        messageInfo.setResponse((header+body).getBytes());
+        if(BurpExtender.gui.isMatch(url)) {
+            String responseData = new String(rawData);
+            String body = responseData.substring(responseInfo.getBodyOffset());
+            BurpExtender.stdout.println("responsebody：" + body);
+            //原始的body进行解密
+            body = BurpExtender.gui.findAndRun(url, body, ReqRep.RESPONSE_RECEIVE);
+            //获取header部分
+            String header = responseData.substring(0, responseInfo.getBodyOffset());
+            messageInfo.setResponse((header + body).getBytes());
+        }
     }
     //responseOut阶段，即将发送response到客户端，读取明文的response，重新进行加密，使得客户端正常解析。
     private void responseOut(IInterceptedProxyMessage message) {
@@ -91,15 +98,20 @@ public class BurpHttpListener implements  IHttpListener, IProxyListener  {
             message.getMessageInfo().setResponse(rawData);
             rawData = null;
         }else {
-            byte[] response = message.getMessageInfo().getResponse();
-            IResponseInfo responseInfo = BurpExtender.callbacks.getHelpers().analyzeResponse(response);
-            String responseData = new String(response);
-            String body = responseData.substring( responseInfo.getBodyOffset());
-            //原始的body进行解密
-            body = BurpExtender.gui.findAndRun(url,body, ReqRep.RESPONSE_SEND);
-            //获取header部分
-            String header = responseData.substring(0,responseInfo.getBodyOffset());
-            message.getMessageInfo().setResponse((header+body).getBytes());
+            IHttpRequestResponse messageInfo = message.getMessageInfo();
+            IRequestInfo requestInfo = BurpExtender.callbacks.getHelpers().analyzeRequest(messageInfo);
+            url = requestInfo.getUrl().toString();
+            if(BurpExtender.gui.isMatch(url)) {
+                byte[] response = message.getMessageInfo().getResponse();
+                IResponseInfo responseInfo = BurpExtender.callbacks.getHelpers().analyzeResponse(response);
+                String responseData = new String(response);
+                String body = responseData.substring(responseInfo.getBodyOffset());
+                //原始的body进行解密
+                body = BurpExtender.gui.findAndRun(url, body, ReqRep.RESPONSE_SEND);
+                //获取header部分
+                String header = responseData.substring(0, responseInfo.getBodyOffset());
+                message.getMessageInfo().setResponse((header + body).getBytes());
+            }
         }
     }
 }

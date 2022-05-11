@@ -292,7 +292,7 @@ public class GUI {
 
 		if(Objects.equals(body, ""))return body;
 		for (String key: jsonObjectConfig.keySet()) {
-			if(url.startsWith(key)){
+			if(url.startsWith(key)&&key.length()>5){
 				try{
 					body = run(jsonObjectConfig.getString(key),flag,body );
 					//BurpExtender.stdout.println("加密或者解密的Body："+body);
@@ -303,6 +303,16 @@ public class GUI {
 			}
 		}
 		return body;
+	}
+	public boolean isMatch(String url){
+		boolean re=false;
+		for (String key: jsonObjectConfig.keySet()) {
+			if(url.startsWith(key)&&key.length()>5) {
+				re=true;
+			 }
+			}
+		return re;
+
 	}
 
 	private void refresh() {
